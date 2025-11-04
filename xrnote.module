@@ -1,0 +1,474 @@
+<?php
+
+/**
+ * @file
+ * Field type "scan_text": stores fid, extracted text, and summary.
+ */
+
+module_load_include('inc', 'scan_text', 'scan_text'); // your parser/executor file
+
+/**
+ * Implements hook_menu().
+ * Non-AJAX scan action with CSRF token.
+ */
+function scan_text_menu() {
+  $items['scan-text/scan/%/%/%/%/%'] = array(
+    'page callback'  => 'scan_text_scan_page',
+    'page arguments' => array(2, 3, 4, 5, 6),
+    'access callback'=> 'scan_text_scan_access',
+    'access arguments'=> array(2, 3, 4),
+    'type'           => MENU_CALLBACK,
+  );
+  return $items;
+}
+
+function scan_text_scan_access($entity_type, $entity_id, $field_name) {
+  // Basic check: must be able to update the entity.
+  $info = entity_get_info($entity_type);
+  if (!$info) return FALSE;
+  $entities = entity_load($entity_type, array($entity_id));
+  if (!$entities) return FALSE;
+  $entity = reset($entities);
+  if ($entity_type === 'node') {
+    return node_access('update', $entity);
+  }
+  return user_access('administer content'); // fallback
+}
+
+/**
+ * Scan action.
+ */
+function scan_text_scan_page($entity_type, $entity_id, $field_name, $langcode, $delta_token) {
+  // $delta_token = "delta:token"
+  if (strpos($delta_token, ':') === FALSE) {
+    return MENU_ACCESS_DENIED;
+  }
+  list($delta, $token) = explode(':', $delta_token, 2);
+
+  $expected = backdrop_get_token("scan:$entity_type:$entity_id:$field_name:$delta");
+  if (!hash_equals($expected, $token)) {
+    return MENU_ACCESS_DENIED;
+  }
+
+  $entities = entity_load($entity_type, array($entity_id));
+  if (!$entities) {
+    backdrop_set_message(t('Entity not found.'), 'error');
+    scan_text_redirect_back($entity_type, $entity_id);
+  }
+  $entity = reset($entities);
+
+  // Locate bundle.
+  $info = entity_get_info($entity_type);
+  $bundle_key = isset($info['entity keys']['bundle']) ? $info['entity keys']['bundle'] : NULL;
+  $bundle = $bundle_key ? $entity->{$bundle_key} : $entity_type;
+
+  // Get instance settings (targets).
+  $instance = field_info_instance($entity_type, $field_name, $bundle);
+  if (!$instance) {
+    backdrop_set_message(t('Field instance not found.'), 'error');
+    scan_text_redirect_back($entity_type, $entity_id);
+  }
+  $targets = isset($instance['settings']['scan_text_targets']) ? $instance['settings']['scan_text_targets'] : '';
+
+  // Item ref.
+  if (empty($entity->{$field_name}[$langcode][$delta])) {
+    backdrop_set_message(t('Field item not found.'), 'error');
+    scan_text_redirect_back($entity_type, $entity_id);
+  }
+  $item =& $entity->{$field_name}[$langcode][$delta];
+
+  if (empty($item['fid'])) {
+    backdrop_set_message(t('No file to scan.'), 'warning');
+    scan_text_redirect_back($entity_type, $entity_id);
+  }
+
+  $file = file_load($item['fid']);
+  if (!$file) {
+    backdrop_set_message(t('File missing.'), 'error');
+    scan_text_redirect_back($entity_type, $entity_id);
+  }
+
+  $real = backdrop_realpath($file->uri);
+  if (!$real || !file_exists($real)) {
+    backdrop_set_message(t('File not accessible.'), 'error');
+    scan_text_redirect_back($entity_type, $entity_id);
+  }
+
+  // Extract main text from PDF.
+  $main = scan_text_extract_text_from_pdf($real);
+
+  // Fallback: use body field if extractor missing or PDF has no text.
+  if ($main === NULL || $main === '') {
+    $main = scan_text_body_plaintext($entity, $langcode);
+    if ($main !== '') {
+      watchdog('scan', 'pdftotext unavailable/empty; used body field for node %nid.', ['%nid' => $entity_id], WATCHDOG_NOTICE);
+    }
+    else {
+      backdrop_set_message(t('No text available: PDF extraction failed and body field is empty.'), 'error');
+      scan_text_redirect_back($entity_type, $entity_id);
+    }
+  }
+
+  // Summarize by directives.
+  $res = scan_text_apply_directives($main, $targets); // may return string OR ['text'=>..,'appends'=>..]
+
+  if (is_array($res)) {
+    $summary = isset($res['text']) ? $res['text'] : '';
+    $appends = !empty($res['appends']) ? $res['appends'] : array();
+  }
+  else {
+    $summary = (string) $res;
+    $appends = array();
+  }
+
+  // Persist into field item.
+  $item['text']    = (string) $main;
+  $item['summary'] = (string) $summary;
+
+  // Apply redirected appends to node fields (if any).
+  if (!empty($appends) && $entity_type === 'node') {
+    _scan_text_apply_redirects_to_node($entity, $langcode, $appends);
+  }
+
+  // Make file permanent and record usage.
+  if (empty($file->status)) {
+    $file->status = FILE_STATUS_PERMANENT;
+    file_save($file);
+  }
+  file_usage_add($file, 'scan_text', $entity_type, $entity_id);
+
+  // Save entity.
+  if ($entity_type === 'node') node_save($entity);
+  else entity_get_controller($entity_type)->save($entity);
+  backdrop_set_message(t('Scan complete.'));
+
+  scan_text_redirect_back($entity_type, $entity_id);
+}
+
+/**
+ * Basic redirect back helper.
+ */
+function scan_text_redirect_back($entity_type, $entity_id) {
+  $dest = !empty($_GET['destination']) ? $_GET['destination'] : NULL;
+  if ($dest) {
+    backdrop_goto($dest);
+  }
+  if ($entity_type === 'node') {
+    backdrop_goto('node/' . $entity_id);
+  }
+  backdrop_goto('<front>');
+}
+
+/**
+ * Implements hook_field_info().
+ */
+function scan_text_field_info() {
+  return array(
+    'scan_text' => array(
+      'label' => t('Scan Text'),
+      'description' => t('Stores a PDF and extracted text.'),
+      'settings' => array(),
+      'instance_settings' => array(
+        'scan_text_targets' => '',
+      ),
+      'default_widget' => 'scan_text_widget',
+      'default_formatter' => 'scan_text',
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_instance_settings_form().
+ */
+function scan_text_field_instance_settings_form($field, $instance) {
+  $form = array();
+  $form['scan_text_targets'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Target directives'),
+    '#description' => t('One directive per line. Format: {target} [pre] [{include}] [post]. Trailing underscore joins with a space.'),
+    '#default_value' => isset($instance['settings']['scan_text_targets']) ? $instance['settings']['scan_text_targets'] : "",
+    '#rows' => 8,
+  );
+  return $form;
+}
+
+/**
+ * Implements hook_field_is_empty().
+ */
+function scan_text_field_is_empty($item, $field) {
+  return empty($item['fid']) && empty($item['text']) && empty($item['summary']);
+}
+
+/**
+ * Implements hook_field_widget_info().
+ */
+function scan_text_field_widget_info() {
+  return array(
+    'scan_text_widget' => array(
+      'label' => t('Scan Text widget'),
+      'field types' => array('scan_text'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_widget_form().
+ */
+function scan_text_field_widget_form($form, &$form_state, $field, $instance, $langcode, $items, $delta, $element) {
+  $item = isset($items[$delta]) ? $items[$delta] : array();
+
+  $element['fid'] = array(
+    '#type' => 'managed_file',
+    '#title' => t('PDF file'),
+    '#default_value' => !empty($item['fid']) ? array($item['fid']) : NULL,
+    '#upload_location' => 'public://scan_text',
+    '#upload_validators' => array(
+      'file_validate_extensions' => array('pdf'),
+    ),
+    '#required' => $instance['required'],
+  );
+
+  // Show read-only previews to aid authors.
+  $element['text'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Extracted text'),
+    '#default_value' => !empty($item['text']) ? $item['text'] : '',
+    '#rows' => 6,
+    '#attributes' => array('readonly' => 'readonly'),
+    '#description' => t('Use the Scan button on the view page to refresh.'),
+  );
+
+  $element['summary'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Summary'),
+    '#default_value' => !empty($item['summary']) ? $item['summary'] : '',
+    '#rows' => 4,
+    '#attributes' => array('readonly' => 'readonly'),
+  );
+
+  return $element;
+}
+
+/**
+ * Implements hook_field_formatter_info().
+ */
+function scan_text_field_formatter_info() {
+  return array(
+    'scan_text' => array(
+      'label' => t('Scan text'),
+      'field types' => array('scan_text'),
+      'settings' => array(
+        'parts' => array(
+          'file'        => array('enabled' => 1, 'weight' => 0),
+          'input_text'  => array('enabled' => 1, 'weight' => 1),
+          'answer_text' => array('enabled' => 1, 'weight' => 2),
+          'scan_button' => array('enabled' => 1, 'weight' => 3),
+        ),
+      ),
+    ),
+  );
+}
+
+function scan_text_field_formatter_settings_form($field, $instance, $view_mode, $form, &$form_state) {
+  $display  = $instance['display'][$view_mode];
+  $settings = isset($display['settings']) ? $display['settings'] : array();
+  if (empty($settings['parts'])) {
+    $settings['parts'] = array(
+      'file'        => array('enabled' => 1, 'weight' => 0),
+      'input_text'  => array('enabled' => 1, 'weight' => 1),
+      'answer_text' => array('enabled' => 1, 'weight' => 2),
+      'scan_button' => array('enabled' => 1, 'weight' => 3),
+    );
+  }
+
+  $labels = array(
+    'file'        => t('File'),
+    'input_text'  => t('Input text'),
+    'answer_text' => t('Answer text'),
+    'scan_button' => t('Scan button'),
+  );
+
+  $form['parts'] = array(
+    '#type' => 'table',
+    '#header' => array(t('Enabled'), t('Subfield'), t('Weight')),
+    '#tabledrag' => array(array('action' => 'order', 'relationship' => 'sibling', 'group' => 'scan-text-weights')),
+  );
+
+  foreach ($labels as $key => $label) {
+    $row = array('#attributes' => array('class' => array('draggable')));
+    $row['enabled'] = array(
+      '#type' => 'checkbox',
+      '#default_value' => !empty($settings['parts'][$key]['enabled']),
+    );
+    $row['label'] = array('#markup' => check_plain($label));
+    $row['weight'] = array(
+      '#type' => 'weight',
+      '#default_value' => isset($settings['parts'][$key]['weight']) ? (int) $settings['parts'][$key]['weight'] : 0,
+      '#attributes' => array('class' => array('scan-text-weights')),
+    );
+    $form['parts'][$key] = $row;
+  }
+
+  return $form;
+}
+
+function scan_text_field_formatter_settings_summary($field, $instance, $view_mode) {
+  $settings = isset($instance['display'][$view_mode]['settings']) ? $instance['display'][$view_mode]['settings'] : array();
+  $labels = array(
+    'file' => 'File', 'input_text' => 'Input text', 'answer_text' => 'Answer text', 'scan_button' => 'Scan button',
+  );
+
+  $enabled = array();
+  if (!empty($settings['parts'])) {
+    foreach ($settings['parts'] as $k => $c) {
+      if (!empty($c['enabled'])) $enabled[$k] = isset($c['weight']) ? (int) $c['weight'] : 0;
+    }
+  }
+  asort($enabled);
+
+  $list = array();
+  foreach (array_keys($enabled) as $k) $list[] = $labels[$k];
+  return $list ? t('Shows: @list', array('@list' => implode(', ', $list))) : t('Nothing selected');
+}
+
+/**
+ * Implements hook_field_formatter_view().
+ */
+function scan_text_field_formatter_view($entity_type, $entity, $field, $instance, $langcode, $items, $display) {
+  $elements = array();
+
+  // Resolve active parts in order.
+  $parts = array();
+  if (!empty($display['settings']['parts'])) {
+    foreach ($display['settings']['parts'] as $k => $c) {
+      if (!empty($c['enabled'])) $parts[$k] = isset($c['weight']) ? (int) $c['weight'] : 0;
+    }
+  }
+  asort($parts);
+
+  // Best-effort entity id for token.
+  $entity_id = NULL;
+  if (isset($entity->nid)) $entity_id = $entity->nid;
+  elseif (isset($entity->id)) $entity_id = $entity->id;
+
+  foreach ($items as $delta => $item) {
+    $build = array();
+
+    foreach (array_keys($parts) as $part) {
+      switch ($part) {
+        case 'file':
+          $build['file'] = !empty($item['fid']) ? array(
+            '#theme' => 'file_link',
+            '#file'  => file_load($item['fid']),
+          ) : array('#markup' => t('No file.'));
+          break;
+
+        case 'input_text':
+          if (!empty($item['text'])) {
+            $build['input_text'] = array('#markup' => '<pre>' . check_plain($item['text']) . '</pre>');
+          }
+          break;
+
+        case 'answer_text':
+          if (!empty($item['summary'])) {
+            $build['answer_text'] = array('#markup' => '<pre>' . check_plain($item['summary']) . '</pre>');
+          }
+          break;
+
+        case 'scan_button':
+          if (isset($entity_id)) {
+            $token = backdrop_get_token("scan:$entity_type:$entity_id:{$field['field_name']}:$delta");
+            $scan_path = "scan-text/scan/$entity_type/$entity_id/{$field['field_name']}/$langcode/$delta:$token";
+            $build['scan'] = array(
+              '#type' => 'link',
+              '#title' => t('Scan'),
+              '#href' => $scan_path,
+              '#attributes' => array('class' => array('button', 'scan-text-scan-btn')),
+              '#options' => array('query' => backdrop_get_destination()),
+            );
+          }
+          break;
+      }
+    }
+
+    $elements[$delta] = $build;
+  }
+
+  return $elements;
+}
+
+function scan_text_form_field_ui_display_overview_form_alter(&$form, &$form_state) {
+  if (empty($form['fields']) || !is_array($form['fields'])) return;
+
+  foreach ($form['fields'] as $field_name => &$row) {
+    if (empty($row['format']['type']['#options'])) continue;
+
+    $field = field_info_field($field_name);
+    if (!$field || $field['type'] !== 'scan_text') continue;
+
+    $row['format']['type']['#options'] = array(
+      'scan_text' => t('Scan text'),
+      'hidden'    => t('Hidden'),
+    );
+  }
+}
+
+/* ---------------- helpers ---------------- */
+
+/**
+ * PDF → text. Returns string or NULL on failure.
+ * Requires `pdftotext` in PATH.
+ */
+function scan_text_extract_text_from_pdf($filepath) {
+  if (!is_readable($filepath)) {
+    watchdog('scan301', 'File not readable: %f', ['%f' => $filepath], WATCHDOG_ERROR);
+    return NULL;
+  }
+
+  $bin = variable_get('scan_text_pdftotext', NULL);
+  if (!$bin) {
+    foreach (['/usr/bin/pdftotext','/usr/local/bin/pdftotext','/bin/pdftotext'] as $c) {
+      if (is_executable($c)) { $bin = $c; break; }
+    }
+    if (!$bin) { $bin = 'pdftotext'; } // hope PATH works
+  }
+
+  if (!function_exists('proc_open')) {
+    watchdog('scan314', 'proc_open is disabled; cannot run pdftotext.', [], WATCHDOG_ERROR);
+    return NULL;
+  }
+
+  $cmd = $bin . ' -layout -q ' . escapeshellarg($filepath) . ' -';
+  $desc = [0=>['pipe','r'], 1=>['pipe','w'], 2=>['pipe','w']];
+  $proc = @proc_open($cmd, $desc, $pipes);
+  if (!is_resource($proc)) {
+    watchdog('scan322', 'Failed to start: %cmd', ['%cmd' => $cmd], WATCHDOG_ERROR);
+    return NULL;
+  }
+
+  fclose($pipes[0]);
+  stream_set_blocking($pipes[1], true);
+  stream_set_blocking($pipes[2], true);
+  $stdout = stream_get_contents($pipes[1]); fclose($pipes[1]);
+  $stderr = stream_get_contents($pipes[2]); fclose($pipes[2]);
+  $code = proc_close($proc);
+
+  if ($code !== 0) {
+    watchdog('scan342', 'pdftotext exit %code for %f. stderr: @err', [
+      '%code'=>$code, '%f'=>$filepath, '@err'=>$stderr
+    ], WATCHDOG_WARNING);
+    return NULL;
+  }
+
+  // If image-only PDF, stdout may be empty but exit 0. Treat as empty text, not hard failure.
+  if ($stdout === '' || $stdout === NULL) {
+    watchdog('scan350', 'pdftotext produced no text for %f (likely image-only PDF).', [
+      '%f'=>$filepath
+    ], WATCHDOG_NOTICE);
+    return '';
+  }
+
+  $out = preg_replace("/[ \t]+\n/", "\n", $stdout);
+  $out = preg_replace("/\r\n?/", "\n", $out);
+  return trim($out);
+}

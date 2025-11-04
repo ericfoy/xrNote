@@ -1,0 +1,6 @@
+name = Scan Text Field
+description = Field type that stores a PDF and extracts main and summary text via directives.
+type = module
+backdrop = 1.x
+package = Perideo
+
