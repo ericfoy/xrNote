@@ -68,15 +68,23 @@ function _xrnote_prev_body($nid) {
 }
 
 function _xrnote_current_body($node) {
-  // Replace 'field_main_text' with your actual body field machine name.
-  $fn = 'field_main_text';
+  // This is the body field on the "parent doc" node..
+  $fn = 'body';
   if (empty($node->{$fn})) return NULL;
   $lang = field_language('node',$node,$fn);
+  
   return isset($node->{$fn}[$lang][0]['value']) ? $node->{$fn}[$lang][0]['value'] : NULL;
 }
 
+
 // Stubs for mapping and quote matching.
-function _xrnote_map_offsets($patches, $start, $end) { /* implement via patch_apply + index shifts */ return FALSE; }
+
+function _xrnote_map_offsets($patches, $start, $end) {
+//implement via patch_apply + index shifts
+return FALSE;
+}
+
+
 function _xrnote_find_quote($text, $q) {
   // $q = array('exact'=>'...', 'prefix'=>'...', 'suffix'=>'...')
   if (empty($q['exact'])) return FALSE;

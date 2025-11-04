@@ -35,17 +35,17 @@ function xrnote_install() {
   node_type_save($type);
 
   // Vocabulary for stock note lists.
-  if (!taxonomy_vocabulary_machine_name_load('xrnote_lists')) {
-    $vocab = (object) array(
-      'name' => 'XRNote Lists',
+  // Create vocabulary if missing.
+  $vocab = taxonomy_vocabulary_load('xrnote_lists');
+  if (!$vocab) {
+    $vocab = new TaxonomyVocabulary(array(
+      'name'         => 'XRNote Lists',
       'machine_name' => 'xrnote_lists',
-      'description' => 'Lists for reusable/stock notes.',
-      'hierarchy' => 0,
-      'module' => 'taxonomy',
-      'weight' => 0,
-    );
-    taxonomy_vocabulary_save($vocab);
+      'description'  => 'Lists for reusable/stock notes.',
+      'weight'       => 0,
+    ));
   }
+  taxonomy_vocabulary_save($vocab);
 
   // Fields on xrnote nodes.
   _xrnote_create_field('field_xr_body', 'text_long', 'xrnote', array('text_processing'=>1));
