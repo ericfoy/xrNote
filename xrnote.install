@@ -1,29 +1,93 @@
 <?php
 
-/**
- * Implements hook_field_schema().
- */
-function scan_text_field_schema($field) {
-  return array(
-    'columns' => array(
-      'fid' => array(
-        'type' => 'int',
-        'unsigned' => TRUE,
-        'not null' => FALSE,
-      ),
-      'text' => array(
-        'type' => 'text',
-        'size' => 'big',
-        'not null' => FALSE,
-      ),
-      'summary' => array(
-        'type' => 'text',
-        'size' => 'big',
-        'not null' => FALSE,
-      ),
+function xrnote_schema() {
+  $schema['xrnote_anchor'] = array(
+    'description' => 'Note placements inside a parent node body.',
+    'fields' => array(
+      'aid'         => array('type'=>'serial','unsigned'=>TRUE,'not null'=>TRUE),
+      'parent_nid'  => array('type'=>'int','unsigned'=>TRUE,'not null'=>TRUE),
+      'note_nid'    => array('type'=>'int','unsigned'=>TRUE,'not null'=>TRUE),
+      'uuid'        => array('type'=>'varchar','length'=>36,'not null'=>TRUE),
+      'selector'    => array('type'=>'text','size'=>'big','not null'=>TRUE), // JSON: {pos:{start,end},quote:{exact,prefix,suffix},checksum}
+      'weight'      => array('type'=>'int','not null'=>TRUE,'default'=>0),
+      'uid'         => array('type'=>'int','unsigned'=>TRUE,'not null'=>TRUE),
+      'created'     => array('type'=>'int','unsigned'=>TRUE,'not null'=>TRUE),
+      'changed'     => array('type'=>'int','unsigned'=>TRUE,'not null'=>TRUE),
     ),
-    'indexes' => array(
-      'fid' => array('fid'),
-    ),
+    'primary key' => array('aid'),
+    'unique keys' => array('uuid' => array('uuid')),
+    'indexes'     => array('parent' => array('parent_nid'), 'note'=>array('note_nid')),
   );
+  return $schema;
+}
+
+function xrnote_install() {
+  // Create "xrnote" content type.
+  $type = (object) array(
+    'type' => 'xrnote',
+    'name' => 'XR Note',
+    'base' => 'node_content',
+    'description' => 'Embeddable cross-reference note.',
+    'custom' => TRUE,
+    'modified' => TRUE,
+    'locked' => FALSE,
+  );
+  node_type_save($type);
+
+  // Vocabulary for stock note lists.
+  if (!taxonomy_vocabulary_machine_name_load('xrnote_lists')) {
+    $vocab = (object) array(
+      'name' => 'XRNote Lists',
+      'machine_name' => 'xrnote_lists',
+      'description' => 'Lists for reusable/stock notes.',
+      'hierarchy' => 0,
+      'module' => 'taxonomy',
+      'weight' => 0,
+    );
+    taxonomy_vocabulary_save($vocab);
+  }
+
+  // Fields on xrnote nodes.
+  _xrnote_create_field('field_xr_body', 'text_long', 'xrnote', array('text_processing'=>1));
+  _xrnote_create_field('field_xr_icon', 'image', 'xrnote', array('cardinality'=>1));
+  _xrnote_create_field('field_xr_lists', 'taxonomy_term_reference', 'xrnote', array(
+    'settings'=>array('allowed_values'=>array(array('vocabulary'=>'xrnote_lists','parent'=>0))),
+    'cardinality' => FIELD_CARDINALITY_UNLIMITED,
+  ));
+
+  // Optional cross-refs between xrnote nodes.
+  if (module_exists('entityreference')) {
+    _xrnote_create_field('field_xr_refs', 'entityreference', 'xrnote', array(
+      'settings'=>array('target_type'=>'node','handler_settings'=>array('target_bundles'=>array('xrnote'=>'xrnote'))),
+      'cardinality' => FIELD_CARDINALITY_UNLIMITED,
+    ));
+  }
+}
+
+function _xrnote_create_field($field_name, $type, $bundle, array $overrides=array()) {
+  if (!field_info_field($field_name)) {
+    $field = array('field_name'=>$field_name, 'type'=>$type);
+    $field = array_replace_recursive($field, $overrides);
+    field_create_field($field);
+  }
+  if (!field_info_instance('node', $field_name, $bundle)) {
+    $instance = array(
+      'field_name' => $field_name,
+      'entity_type'=> 'node',
+      'bundle'     => $bundle,
+      'label'      => 'XR ' . ucfirst(str_replace('_',' ', substr($field_name, 6))),
+      'widget'     => array('type' => _xrnote_default_widget($type)),
+    );
+    field_create_instance($instance);
+  }
+}
+
+function _xrnote_default_widget($type) {
+  switch ($type) {
+    case 'text_long': return 'text_textarea';
+    case 'image': return 'image_image';
+    case 'taxonomy_term_reference': return 'options_select';
+    case 'entityreference': return 'entityreference_autocomplete';
+    default: return 'text_textfield';
+  }
 }

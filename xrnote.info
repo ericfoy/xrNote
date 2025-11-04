@@ -1,6 +1,11 @@
-name = Scan Text Field
-description = Field type that stores a PDF and extracts main and summary text via directives.
+name = XRNote
 type = module
+description = Cross-referenced notes anchored into body text, with multiple display modes.
 backdrop = 1.x
 package = Perideo
-
+dependencies[] = taxonomy
+dependencies[] = image
+; If you use entity reference for cross-refs:
+dependencies[] = entityreference
+; TinyMCE editor module for Backdrop (contrib):
+dependencies[] = tinymce
