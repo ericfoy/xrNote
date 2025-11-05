@@ -159,13 +159,3 @@ function xrnote_is_document_node($node) {
     && $node->type !== 'xrnote'
     && isset($node->body) && is_array($node->body);
 }
-
-/* Deleteme, prolly
-function _xrnote_current_body($node) {
-  $fn = 'body'; // the main text field for note attach-to capability
-  if (empty($node->{$fn})) return NULL;
-  $lang = field_language('node', $node, $fn);
-  if (!$lang) $lang = LANGUAGE_NONE;
-  return isset($node->{$fn}[$lang][0]['value']) ? $node->{$fn}[$lang][0]['value'] : NULL;
-}
-*/
