@@ -5,7 +5,6 @@
 //require_once __DIR__ . '/includes/xrnote.render.inc';
 //require_once __DIR__ . '/includes/xrnote.pages.inc';   // modal + AJAX handlers
 //require_once __DIR__ . '/xrnote.theme.inc';            // theme functions (if any)
-//require_once __DIR__ . '/lib/diff_match_patch.php';    // minimal DMP wrapper
 
 function xrnote_permission() {
   return array(
