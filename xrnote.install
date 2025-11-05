@@ -25,6 +25,99 @@ function xrnote_schema() {
 }
 
 function xrnote_install() {
+  $bundle = 'xrnote';
+
+  // 1) Ensure content type exists.
+  if (!node_type_load($bundle)) {
+    $type = (object) array(
+      'type' => $bundle,
+      'name' => 'XR Note',
+      'description' => 'Standalone note used by xrNote anchors.',
+      'title_label' => 'Note title',
+    );
+    node_type_save($type);
+  }
+
+  // 2) Create field base first.
+  if (!field_info_field('field_xr_body')) {
+    field_create_field(array(
+      'field_name'  => 'field_xr_body',
+      'type'        => 'text_long',   // provided by Text module
+      'cardinality' => 1,
+    ));
+  }
+
+  // 3) Attach instance to the bundle.
+  if (!field_info_instance('node', 'field_xr_body', $bundle)) {
+    field_create_instance(array(
+      'field_name'  => 'field_xr_body',
+      'entity_type' => 'node',
+      'bundle'      => $bundle,
+      'label'       => 'Note body',
+      'widget'      => array('type' => 'text_textarea', 'settings' => array('rows' => 6)),
+      'display'     => array('default' => array('label' => 'hidden', 'type' => 'text_default')),
+    ));
+  }
+
+  // 4) field_xr_icon: short text 
+  if (!field_info_field('field_xr_icon')) {
+    field_create_field(array(
+      'field_name'  => 'field_xr_icon',
+      'type'        => 'text',     // short text
+      'cardinality' => 1,
+    ));
+  }
+  if (!field_info_instance('node', 'field_xr_icon', $bundle)) {
+    field_create_instance(array(
+      'field_name'  => 'field_xr_icon',
+      'entity_type' => 'node',
+      'bundle'      => $bundle,
+      'label'       => 'Icon',
+      'widget'      => array('type' => 'text_textfield', 'settings' => array('size' => 60)),
+      'display'     => array('default' => array('label' => 'hidden', 'type' => 'text_default')),
+    ));
+  }
+
+  // 5) field_xr_lists: multi-select list (checkboxes) 
+  if (!field_info_field('field_xr_lists')) {
+    field_create_field(array(
+      'field_name'  => 'field_xr_lists',
+      'type'        => 'list_text',   // provided by Options module
+      'cardinality' => -1,            // unlimited; set 1 for single-select
+      'settings'    => array(
+        'allowed_values' => array(
+          'todo' => 'To do',
+          'ref'  => 'Reference',
+          'idea' => 'Idea',
+        ),
+      ),
+    ));
+  }
+  if (!field_info_instance('node', 'field_xr_lists', $bundle)) {
+    field_create_instance(array(
+      'field_name'  => 'field_xr_lists',
+      'entity_type' => 'node',
+      'bundle'      => $bundle,
+      'label'       => 'Lists',
+      'widget'      => array('type' => 'options_buttons'), // checkboxes
+      'display'     => array('default' => array('label' => 'above', 'type' => 'list_default')),
+    ));
+  }
+}
+
+function xrnote_uninstall() {
+  $bundle = 'xrnote';
+  if ($inst = field_info_instance('node', 'field_xr_icon',  $bundle)) field_delete_instance($inst);
+  if ($inst = field_info_instance('node', 'field_xr_lists', $bundle)) field_delete_instance($inst);
+  if (field_info_field('field_xr_icon'))  field_delete_field('field_xr_icon');
+  if (field_info_field('field_xr_lists')) field_delete_field('field_xr_lists');
+  if ($inst = field_info_instance('node', 'field_xr_body', $bundle)) field_delete_instance($inst);
+  if (field_info_field('field_xr_body')) field_delete_field('field_xr_body');
+  if ($type = node_type_load($bundle)) node_type_delete($type);
+}
+
+/* OLD
+function xrnote_install() {
   // Create "xrnote" content type.
   $type = (object) array(
     'type' => 'xrnote',
@@ -84,7 +177,7 @@ function _xrnote_create_field($field_name, $type, $bundle, array $overrides=arra
     field_create_instance($instance);
   }
 }
-
+*/
 function _xrnote_default_widget($type) {
   switch ($type) {
     case 'text_long': return 'text_textarea';
