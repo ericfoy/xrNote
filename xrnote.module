@@ -1,10 +1,20 @@
 <?php
 // Later we'll implement lazy loading...
 // XRNote dev includes (eager load).
-//require_once __DIR__ . '/includes/xrnote.anchor.inc';
-//require_once __DIR__ . '/includes/xrnote.render.inc';
+require_once __DIR__ . '/includes/xrnote.anchor.inc';
+require_once __DIR__ . '/includes/xrnote.render.inc';
 //require_once __DIR__ . '/includes/xrnote.pages.inc';   // modal + AJAX handlers
 //require_once __DIR__ . '/xrnote.theme.inc';            // theme functions (if any)
+
+/*
+Caution: The function should not be used in a global context (e.g., at the very 
+top of your .module file, outside of any functions), as it requires Backdrop to be 
+fully bootstrapped first. In a global context, you should use require_once with the 
+full path if absolutely necessary. 
+
+module_load_include('inc', 'xrnote', 'includes/xrnote.anchor');
+module_load_include('inc', 'xrnote', 'includes/xrnote.render');
+*/
 
 function xrnote_permission() {
   return array(
@@ -75,9 +85,14 @@ function xrnote_node_update($node) {
   if (!xrnote_is_document_node($node)) return;
   xrnote_reanchor_node($node);
 }
+
 function xrnote_node_view($node, $view_mode, $langcode) {
   if (!xrnote_is_document_node($node)) return;
-  xrnote_attach_view_assets($node, $view_mode);
+  $lang = field_language('node', $node, 'body');
+  if (!empty($node->content['body'][$lang][0]['#markup'])) {
+    $html = $node->content['body'][$lang][0]['#markup'];
+    $node->content['body'][$lang][0]['#markup'] = xrnote_inline_replace($html);
+  }
 }
 
 function xrnote_modal_add($parent_node, $uuid) {
@@ -121,7 +136,7 @@ function xrnote_modal_add_submit($form, &$form_state) {
   // Emit a tiny script that dispatches the insert event and closes the dialog.
   $uuid = check_plain($form['#xr_uuid']);
   $nid_js = (int) $nid;
-  $script = '<script>(function(){window.dispatchEvent(new CustomEvent("xrnote-insert",{detail:{uuid:"'.$uuid.'",note_nid:'.$nid_js.'}})); window.jQuery(".xrnote-dialog").dialog("close");})();</script>';
+  $script = '<script>(function(){var ev=new CustomEvent("xrnote-insert",{detail:{uuid:"'.$uuid.'",note_nid":'.$nid_js.'}});window.dispatchEvent(ev);jQuery(".ui-dialog-content").dialog("close");}());</script>';
   print $script;
   backdrop_exit();
 }
