@@ -68,12 +68,17 @@ function _xrnote_prev_body($nid) {
 }
 
 function _xrnote_current_body($node) {
-  // This is the body field on the "parent doc" node..
+  if (!xrnote_is_document_node($node)) return NULL;
   $fn = 'body';
-  if (empty($node->{$fn})) return NULL;
-  $lang = field_language('node',$node,$fn);
-  
-  return isset($node->{$fn}[$lang][0]['value']) ? $node->{$fn}[$lang][0]['value'] : NULL;
+
+  $lang = function_exists('field_language')
+    ? field_language('node', $node, $fn)
+    : (defined('LANGUAGE_NONE') ? LANGUAGE_NONE : 'und');
+  if (!$lang) $lang = defined('LANGUAGE_NONE') ? LANGUAGE_NONE : 'und';
+
+  if (!empty($node->{$fn}[$lang][0]['safe_value'])) return $node->{$fn}[$lang][0]['safe_value'];
+  if (!empty($node->{$fn}[$lang][0]['value']))      return $node->{$fn}[$lang][0]['value'];
+  return NULL;
 }
 
 

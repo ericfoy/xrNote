@@ -51,45 +51,33 @@ function xrnote_access_place($node) {
  * Replace 'xrnote' with your actual content type that has "Main Text".
  */
 function xrnote_form_alter(&$form, &$form_state, $form_id) {
-  if ($form_id !== 'node_form' && strpos($form_id, '_node_form') === FALSE) return;
-  if (empty($form['#node']) || $form['#node']->type !== 'page') return;
+  if (($form_id !== 'node_form' && strpos($form_id, '_node_form') === FALSE) || empty($form['#node'])) 
+    return;
 
-  // Sidebar container in edit UI.
-  $form['page_sidebar'] = array(
-    '#type' => 'markup',
-    '#markup' => '<div id="page-sidebar" class="page-sidebar"></div>',
-    '#weight' => -10,
+  $node = $form['#node'];
+  if (!xrnote_is_document_node($node)) 
+    return;
+
+  // Attach editor UI, sidebar, assets.
+  $form['xrnote_sidebar'] = array(
+    '#type'=>'markup', 
+    '#markup'=>'<div id="xrnote-sidebar" class="xrnote-sidebar"></div>', 
+    '#weight'=>-10
   );
-
-  // Assets.
+  
   $form['#attached']['library'][] = array('system', 'ui.dialog');
   $form['#attached']['js'][]  = backdrop_get_path('module','xrnote') . '/js/xrnote.tinymce.js';
   $form['#attached']['js'][]  = backdrop_get_path('module','xrnote') . '/js/xrnote.sidebar.js';
   $form['#attached']['css'][] = backdrop_get_path('module','xrnote') . '/css/xrnote.admin.css';
-
-  // Settings to JS.
-  $anchors = xrnote_load_anchors($form['#node']->nid);
-  $form['#attached']['js'][] = array(
-    'type' => 'setting',
-    'data' => array('xrnote' => array(
-      'nid' => $form['#node']->nid,
-      'anchors' => $anchors,
-      'basePath' => base_path(),
-    )),
-  );
+  $form['#attached']['js'][] = array('type'=>'setting','data'=>array('xrnote'=>array('nid'=>$node->nid,'basePath'=>base_path())));
 }
 
-/** Maintain anchors when parent is edited. */
 function xrnote_node_update($node) {
-  if ($node->type !== 'page') return;
-  module_load_include('inc', 'xrnote', 'includes/xrnote.anchor');
+  if (!xrnote_is_document_node($node)) return;
   xrnote_reanchor_node($node);
 }
-
-/** Replace markers on view when in inline mode, attach margin modes. */
 function xrnote_node_view($node, $view_mode, $langcode) {
-  if ($node->type !== 'page') return;
-  module_load_include('inc', 'xrnote', 'includes/xrnote.render');
+  if (!xrnote_is_document_node($node)) return;
   xrnote_attach_view_assets($node, $view_mode);
 }
 
@@ -149,6 +137,15 @@ function xrnote_ajax_sidebar($node) {
   xrnote_save_anchor($node->nid, $note_nid, $uuid, $selector);
   return backdrop_json_output(array('status'=>'ok'));
 }
+
+// Document detector: has 'body' and is not the note bundle.
+function xrnote_is_document_node($node) {
+  return is_object($node)
+    && !empty($node->type)
+    && $node->type !== 'xrnote'
+    && isset($node->body) && is_array($node->body);
+}
+
 /* Deleteme, prolly
 function _xrnote_current_body($node) {
   $fn = 'body'; // the main text field for note attach-to capability
