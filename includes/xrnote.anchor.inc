@@ -81,14 +81,37 @@ function _xrnote_current_body($node) {
   return NULL;
 }
 
-
-// Stubs for mapping and quote matching.
-
+// xrnote.anchor.inc
 function _xrnote_map_offsets($patches, $start, $end) {
-//implement via patch_apply + index shifts
-return FALSE;
+  // Simple shift accumulator. Works when patches don't touch the range.
+  // If a patch overlaps [start,end), return FALSE so quote-fallback runs.
+  if (!is_array($patches)) return FALSE;
+  $s = (int) $start; $e = (int) $end; $shift = 0;
+
+  foreach ($patches as $p) {
+    // Accept both real dmp_Patch and array-like with properties.
+    $pstart = isset($p->start1) ? $p->start1 : (isset($p['start1']) ? $p['start1'] : 0);
+    $plen1  = isset($p->length1) ? $p->length1 : (isset($p['length1']) ? $p['length1'] : 0);
+    $plen2  = isset($p->length2) ? $p->length2 : (isset($p['length2']) ? $p['length2'] : 0);
+
+    $pend   = $pstart + $plen1;
+    $delta  = $plen2 - $plen1;
+
+    if ($pend <= $s) { // patch entirely before our span
+      $shift += $delta;
+      continue;
+    }
+    if ($pstart >= $e) { // patch entirely after our span
+      break;
+    }
+    // Overlap with our span: too ambiguous for index math; let quote finder handle it.
+    return FALSE;
+  }
+
+  return array($s + $shift, $e + $shift);
 }
 
+// Stubs for mapping and quote matching.
 
 function _xrnote_find_quote($text, $q) {
   // $q = array('exact'=>'...', 'prefix'=>'...', 'suffix'=>'...')
