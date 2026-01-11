@@ -28,7 +28,7 @@
           function onInsert(ev) {
             var d = ev.detail || {};
             if (d.uuid !== uuid || !d.note_nid) return;
-            var marker = '<span class="xrnote-anchor" data-xr-uuid="'+uuid+'" data-note-nid="'+nid_js+'">[XR]</span>';
+            var marker = '<span class="xrnote-anchor" data-xr-uuid="' + uuid + '" data-note-nid="' + d.note_nid + '">[XR]</span>';
             editor.insertContent(marker);
             $.post(st.basePath + 'xrnote/anchors/' + st.nid, {
               op: 'save',

@@ -75,7 +75,7 @@ function xrnote_form_alter(&$form, &$form_state, $form_id) {
   );
   
   $form['#attached']['library'][] = array('system', 'ui.dialog');
-  $form['#attached']['js'][]  = backdrop_get_path('module','xrnote') . '/js/xrnote.tinymce.js';
+  //$form['#attached']['js'][]  = backdrop_get_path('module','xrnote') . '/js/plugins/xrnote/plugin.js';
   $form['#attached']['js'][]  = backdrop_get_path('module','xrnote') . '/js/xrnote.sidebar.js';
   $form['#attached']['css'][] = backdrop_get_path('module','xrnote') . '/css/xrnote.admin.css';
   $form['#attached']['js'][] = array('type'=>'setting','data'=>array('xrnote'=>array('nid'=>$node->nid,'basePath'=>base_path())));
@@ -136,7 +136,7 @@ function xrnote_modal_add_submit($form, &$form_state) {
   // Emit a tiny script that dispatches the insert event and closes the dialog.
   $uuid = check_plain($form['#xr_uuid']);
   $nid_js = (int) $nid;
-  $script = '<script>(function(){var ev=new CustomEvent("xrnote-insert",{detail:{uuid:"'.$uuid.'",note_nid":'.$nid_js.'}});window.dispatchEvent(ev);jQuery(".ui-dialog-content").dialog("close");}());</script>';
+  $script = '<script>(function(){var ev=new CustomEvent("xrnote-insert",{detail:{uuid:"'.$uuid.'",note_nid:'.$nid_js.'}});window.dispatchEvent(ev);jQuery(".ui-dialog-content").dialog("close");}());</script>';
   print $script;
   backdrop_exit();
 }
@@ -158,4 +158,31 @@ function xrnote_is_document_node($node) {
     && !empty($node->type)
     && $node->type !== 'xrnote'
     && isset($node->body) && is_array($node->body);
+}
+
+/**
+ * Implements hook_tinymce_external_plugins().
+ */
+function xrnote_tinymce_external_plugins($format) {
+  $module_url = base_path() . backdrop_get_path('module', 'xrnote');
+
+  return array(
+    'xrnote' => array(
+      // TinyMCE will load this file when the plugin is enabled in the profile.
+      'plugin_path' => $module_url . '/js/plugins/xrnote/plugin.js',
+
+      // This is what makes the button show up in the TinyMCE builder UI.
+      'buttons' => array(
+        'xrnote' => array(
+          'tooltip' => 'Insert XRNote',
+          'required_tags' => array('span'),
+          // Optional: provide an icon name if you ship one (see below).
+          // 'icon' => 'xrnote',
+        ),
+      ),
+
+      // Optional if you ship a custom icon file:
+      // 'icons' => array('xrnote' => 'xrnote.svg'),
+    ),
+  );
 }
