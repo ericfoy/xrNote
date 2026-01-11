@@ -17,7 +17,7 @@ deployment:
     - /bin/mkdir -p /home/typetheb/public_html/modules/xrnote
 
     # Mirror module from repo → live (deletes removed files)
-    - /bin/rsync -av --delete --exclude=.git/ --exclude=.github/ --exclude=.vscode/ --exclude=~bin/ --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r /home/typetheb/repositories/xrnote/ /home/typetheb/public_html/modules/xrnote/ >> /home/typetheb/repositories/deploy.log 2>&1 || /bin/echo "RSYNC_MOD_FAIL code=$?" >> /home/typetheb/repositories/deploy.log
+    - /bin/rsync -av --delete --exclude=.git/ --exclude=.github/ --exclude=.vscode/ --exclude=~bin/ --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r /home/typetheb/repositories/xrNote/ /home/typetheb/public_html/modules/xrnote/ >> /home/typetheb/repositories/deploy.log 2>&1 || /bin/echo "RSYNC_MOD_FAIL code=$?" >> /home/typetheb/repositories/deploy.log
 
     # End marker with SHA
-    - /bin/echo "==== DEPLOY END $(date)  SHA-> $(/usr/bin/git -C /home/typetheb/repositories/xrnote rev-parse --short HEAD) ====" >> /home/typetheb/repositories/deploy.log
+    - /bin/echo "==== DEPLOY END $(date)  SHA-> $(/usr/bin/git -C /home/typetheb/repositories/xrNote rev-parse --short HEAD) ====" >> /home/typetheb/repositories/deploy.log
