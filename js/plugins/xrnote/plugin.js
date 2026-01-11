@@ -1,9 +1,30 @@
 (function ($, Backdrop, win) {
+  // Use this version normally
+  /*
   function openDialog(url, title) {
     $.get(url).done(function (html) {
       var $d = $('<div class="xrnote-dialog"></div>').append(html).appendTo('body');
       $d.dialog({ title: title || 'Insert XRNote', modal: true, width: 520, close: function(){ $d.remove(); } });
     });
+  }
+  */
+
+  // Use this version with error handling
+  function openDialog(url, title) {
+    $.get(url)
+      .done(function (html) {
+        var $d = $('<div class="xrnote-dialog"></div>').append(html).appendTo('body');
+        $d.dialog({
+          title: title || 'Insert XRNote',
+          modal: true,
+          width: 520,
+          close: function(){ $d.remove(); }
+        });
+      })
+      .fail(function (xhr) {
+        alert('XRNote dialog failed: HTTP ' + xhr.status);
+        if (win.console) console.error('XRNote dialog GET failed', url, xhr);
+      });
   }
 
   function register() {
@@ -12,6 +33,12 @@
       editor.ui.registry.addButton('xrnote', {
         text: 'XRNote',
         onAction: function () {
+
+          // SMOKE TEST: prove the click handler runs.
+          editor.insertContent('@');
+          if (win.console) console.log('XRNote button clicked');
+          return; // <- remove/comment this line after the test
+
           var sel = editor.selection, rng = sel.getRng();
           var exact  = sel.getContent({ format: 'text' }) || '';
           var textAll = editor.getContent({ format: 'text' }) || '';
