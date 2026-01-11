@@ -4,23 +4,33 @@ function xrnote_schema() {
   $schema['xrnote_anchor'] = array(
     'description' => 'Anchors binding notes to positions in a host node body.',
     'fields' => array(
-      'aid'       => array('type' => 'serial', 'not null' => TRUE),
-      'nid'       => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE),  // host node
-      'note_nid'  => array('type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE), // note node
-      'uuid'      => array('type' => 'varchar', 'length' => 64, 'not null' => TRUE),
-      'selector'  => array('type' => 'text', 'size' => 'big', 'not null' => TRUE),    // JSON blob
-      'created'   => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
-      'changed'   => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
-      // Optional, if you persist creator:
-      // 'uid'    => array('type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE),
+      'aid' => array('type' => 'serial', 'not null' => TRUE),
+
+      'parent_nid' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE),
+      'uuid'       => array('type' => 'varchar', 'length' => 64, 'not null' => TRUE),
+
+      'note_nid'   => array('type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE),
+      'selector'   => array('type' => 'text', 'size' => 'big', 'not null' => TRUE),
+
+      'weight'     => array('type' => 'int', 'not null' => TRUE, 'default' => 0),
+
+      'uid'        => array('type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE),
+
+      'created'    => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
+      'changed'    => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
     ),
     'primary key' => array('aid'),
+    'unique keys' => array(
+      'parent_uuid' => array('parent_nid', 'uuid'),
+    ),
     'indexes' => array(
-      'nid'      => array('nid'),
-      'note_nid' => array('note_nid'),
-      'uuid'     => array('uuid'),
+      'parent_nid' => array('parent_nid'),
+      'note_nid'   => array('note_nid'),
+      'uuid'       => array('uuid'),
+      'weight'     => array('weight'),
     ),
   );
+
   return $schema;
 }
 
@@ -116,68 +126,6 @@ function xrnote_uninstall() {
   if ($type = node_type_load($bundle)) node_type_delete($type);
 }
 
-/* OLD
-function xrnote_install() {
-  // Create "xrnote" content type.
-  $type = (object) array(
-    'type' => 'xrnote',
-    'name' => 'XR Note',
-    'base' => 'node_content',
-    'description' => 'Embeddable cross-reference note.',
-    'custom' => TRUE,
-    'modified' => TRUE,
-    'locked' => FALSE,
-  );
-  node_type_save($type);
-
-  // Vocabulary for stock note lists.
-  // Create vocabulary if missing.
-  $vocab = taxonomy_vocabulary_load('xrnote_lists');
-  if (!$vocab) {
-    $vocab = new TaxonomyVocabulary(array(
-      'name'         => 'XRNote Lists',
-      'machine_name' => 'xrnote_lists',
-      'description'  => 'Lists for reusable/stock notes.',
-      'weight'       => 0,
-    ));
-  }
-  taxonomy_vocabulary_save($vocab);
-
-  // Fields on xrnote nodes.
-  _xrnote_create_field('field_xr_body', 'text_long', 'xrnote', array('text_processing'=>1));
-  _xrnote_create_field('field_xr_icon', 'image', 'xrnote', array('cardinality'=>1));
-  _xrnote_create_field('field_xr_lists', 'taxonomy_term_reference', 'xrnote', array(
-    'settings'=>array('allowed_values'=>array(array('vocabulary'=>'xrnote_lists','parent'=>0))),
-    'cardinality' => FIELD_CARDINALITY_UNLIMITED,
-  ));
-
-  // Optional cross-refs between xrnote nodes.
-  if (module_exists('entityreference')) {
-    _xrnote_create_field('field_xr_refs', 'entityreference', 'xrnote', array(
-      'settings'=>array('target_type'=>'node','handler_settings'=>array('target_bundles'=>array('xrnote'=>'xrnote'))),
-      'cardinality' => FIELD_CARDINALITY_UNLIMITED,
-    ));
-  }
-}
-
-function _xrnote_create_field($field_name, $type, $bundle, array $overrides=array()) {
-  if (!field_info_field($field_name)) {
-    $field = array('field_name'=>$field_name, 'type'=>$type);
-    $field = array_replace_recursive($field, $overrides);
-    field_create_field($field);
-  }
-  if (!field_info_instance('node', $field_name, $bundle)) {
-    $instance = array(
-      'field_name' => $field_name,
-      'entity_type'=> 'node',
-      'bundle'     => $bundle,
-      'label'      => 'XR ' . ucfirst(str_replace('_',' ', substr($field_name, 6))),
-      'widget'     => array('type' => _xrnote_default_widget($type)),
-    );
-    field_create_instance($instance);
-  }
-}
-*/
 function _xrnote_default_widget($type) {
   switch ($type) {
     case 'text_long': return 'text_textarea';

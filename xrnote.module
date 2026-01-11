@@ -29,18 +29,20 @@ function xrnote_permission() {
 function xrnote_menu() {
   $items['xrnote/modal/add/%node/%'] = array(
     'page callback'   => 'xrnote_modal_add',
-    'page arguments'  => array(2, 3), // parent node, uuid
+    'page arguments'  => array(3, 4),
     'access callback' => 'xrnote_access_place',
-    'access arguments'=> array(2),
+    'access arguments'=> array(3),
     'type'            => MENU_CALLBACK,
   );
+
   $items['xrnote/modal/edit/%node/%'] = array(
     'page callback'   => 'xrnote_modal_edit',
-    'page arguments'  => array(2, 3), // parent node, uuid
+    'page arguments'  => array(3, 4),
     'access callback' => 'xrnote_access_place',
-    'access arguments'=> array(2),
+    'access arguments'=> array(3),
     'type'            => MENU_CALLBACK,
   );
+
   $items['xrnote/anchors/%node'] = array(
     'page callback'   => 'xrnote_ajax_sidebar',
     'page arguments'  => array(2),
@@ -48,6 +50,7 @@ function xrnote_menu() {
     'access arguments'=> array(2),
     'type'            => MENU_CALLBACK,
   );
+
   return $items;
 }
 

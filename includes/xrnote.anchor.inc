@@ -196,14 +196,16 @@ function xrnote_load_anchors($parent_nid) {
 // includes/xrnote.anchor.inc
 function xrnote_save_anchor($parent_nid, $note_nid, $uuid, array $selector) {
   db_merge('xrnote_anchor')
-    ->key(array('uuid' => $uuid))
+    ->key(array(
+      'parent_nid' => (int) $parent_nid,
+      'uuid'       => $uuid,
+    ))
     ->insertFields(array('created' => REQUEST_TIME))
     ->updateFields(array('changed' => REQUEST_TIME))
     ->fields(array(
-      'parent_nid' => $parent_nid,
-      'note_nid'   => $note_nid,
-      'selector'   => json_encode($selector),
-      'uid'        => (int) $GLOBALS['user']->uid,
+      'note_nid' => (int) $note_nid,
+      'selector' => json_encode($selector),
+      'uid'      => (int) $GLOBALS['user']->uid,
     ))
     ->execute();
 }
