@@ -47,6 +47,9 @@
           var $doc = $page(win.top ? win.top.document : document);
 
           function onInsert(e, payload) {
+            if (win.top && win.top.console) {
+              win.top.console.log('[xrnote] payload typeof=', typeof payload, 'payload=', payload);
+            }
             try {
               var d = payload || {};
               if (win.top && win.top.console) win.top.console.log('[xrnote] onInsert fired', d);

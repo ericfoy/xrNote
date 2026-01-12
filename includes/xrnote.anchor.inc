@@ -195,17 +195,28 @@ function xrnote_load_anchors($parent_nid) {
 
 // includes/xrnote.anchor.inc
 function xrnote_save_anchor($parent_nid, $note_nid, $uuid, array $selector) {
+  $parent_nid = (int) $parent_nid;
+  $note_nid   = (int) $note_nid;
+  $uuid       = (string) $uuid;
+  $now        = REQUEST_TIME;
+
+  $common = array(
+    'parent_nid' => $parent_nid,
+    'note_nid'   => $note_nid,
+    'uuid'       => $uuid,
+    'selector'   => json_encode($selector),
+    'uid'        => (int) $GLOBALS['user']->uid,
+  );
+
   db_merge('xrnote_anchor')
-    ->key(array(
-      'parent_nid' => (int) $parent_nid,
-      'uuid'       => $uuid,
+    ->key(array('uuid' => $uuid))
+    ->insertFields($common + array(
+      'created' => $now,
+      'changed' => $now,
+      'weight'  => 0,
     ))
-    ->insertFields(array('created' => REQUEST_TIME))
-    ->updateFields(array('changed' => REQUEST_TIME))
-    ->fields(array(
-      'note_nid' => (int) $note_nid,
-      'selector' => json_encode($selector),
-      'uid'      => (int) $GLOBALS['user']->uid,
+    ->updateFields($common + array(
+      'changed' => $now,
     ))
     ->execute();
 }

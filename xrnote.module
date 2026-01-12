@@ -212,10 +212,12 @@ function xrnote_modal_add_form_ajax($form, &$form_state) {
     return array('#type' => 'ajax', '#commands' => $commands);
   }
 
-  $commands[] = ajax_command_invoke('body', 'trigger', array(
-    'xrnote-insert',
-    array('uuid' => $uuid, 'note_nid' => $nid),
-  ));
+$payload = array('uuid' => $uuid, 'note_nid' => $nid);
+
+$commands[] = ajax_command_invoke('body', 'trigger', array(
+  'xrnote-insert',
+  array($payload),   // <-- IMPORTANT: wrap it
+));
 
   return array('#type' => 'ajax', '#commands' => $commands);
 }
