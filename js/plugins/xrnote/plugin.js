@@ -20,7 +20,10 @@
     $.get(url)
       .done(function (html) {
         var $d = $('<div class="xrnote-dialog"></div>').append(html).appendTo('body');
-        Backdrop.attachBehaviors($d[0]);
+        // Important: wire up #ajax behaviors inside the newly-added markup.
+        if (Backdrop && Backdrop.attachBehaviors) {
+          Backdrop.attachBehaviors($d[0]);
+        }
         $d.dialog({
           title: title || 'Insert XRNote',
           modal: true,
