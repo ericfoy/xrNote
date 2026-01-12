@@ -1,3 +1,24 @@
-/* css/xrnote.admin.css */
-#xrnote-sidebar { position:fixed; top:4rem; right:1rem; width:220px; }
-#xrnote-sidebar .item { padding:4px 6px; border-bottom:1px solid #ddd; }
+.xrnote-editor-wrap {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.xrnote-editor-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.xrnote-sidebar {
+  flex: 0 0 340px;
+  max-width: 340px;
+  border-left: 1px solid #ddd;
+  padding-left: 12px;
+  min-height: 200px;
+}
+
+/* small screens */
+@media (max-width: 900px) {
+  .xrnote-editor-wrap { display: block; }
+  .xrnote-sidebar { max-width: none; border-left: 0; padding-left: 0; margin-top: 12px; }
+}

@@ -72,11 +72,13 @@ function xrnote_form_alter(&$form, &$form_state, $form_id) {
     return;
   }
 
-  $form['xrnote_sidebar'] = array(
-    '#type' => 'markup',
-    '#markup' => '<div id="xrnote-sidebar" class="xrnote-sidebar"></div>',
-    '#weight' => -10,
-  );
+  $wrap_open  = '<div class="xrnote-editor-wrap"><div class="xrnote-editor-main">';
+  $wrap_close = '</div><div id="xrnote-sidebar" class="xrnote-sidebar"></div></div>';
+
+  if (isset($form['body'])) {
+    $form['body']['#prefix'] = ($form['body']['#prefix'] ?? '') . $wrap_open;
+    $form['body']['#suffix'] = $wrap_close . ($form['body']['#suffix'] ?? '');
+}
 
   $form['#attached']['library'][] = array('system', 'backdrop.ajax');
   $form['#attached']['library'][] = array('system', 'backdrop.dialog.ajax');
