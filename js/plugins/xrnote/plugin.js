@@ -64,38 +64,56 @@
 
           openDialog(url, 'Insert XRNote');
 
-          // Use the top window jQuery if available (works even if TinyMCE is in an iframe).
+          // Use the top window’s jQuery + DOM so we’re listening on the same "body"
+          // that Backdrop Ajax triggers on.
           var $top = (win.top && win.top.jQuery) ? win.top.jQuery : $;
-          var $root = $top('body');
+          var $bus = $top('body');
 
-          // Listen for the server-triggered jQuery event.
-          function onInsert(e, d) {
-            d = d || {};
-            if (d.uuid !== uuid || !d.note_nid) return;
+          // Optional: one-time global debug (comment out after working)
+          $bus.off('xrnote-insert._xrdebug').on('xrnote-insert._xrdebug', function (e, payload) {
+            console.log('[xrnote DEBUG] event seen on top body:', payload);
+          });
 
-            if (win.console) console.log('XRNote insert event received', d);
+          function onInsert(e, payload) {
+            try {
+              var d = payload || {};
+              console.log('[xrnote] onInsert fired', d);
 
-            var marker = '<span class="xrnote-anchor" data-xr-uuid="' + uuid +
-                        '" data-note-nid="' + d.note_nid + '">[XR]</span>';
-            editor.insertContent(marker);
+              if (d.uuid !== uuid || !d.note_nid) return;
 
-            $.post(st.basePath + 'xrnote/anchors/' + st.nid, {
-              op: 'save',
-              uuid: uuid,
-              note_nid: d.note_nid,
-              selector: JSON.stringify({ pos:{start:start,end:end}, quote:{exact:exact,prefix:prefix,suffix:suffix} })
-            });
+              var marker =
+                '<span class="xrnote-anchor" data-xr-uuid="' + uuid +
+                '" data-note-nid="' + d.note_nid + '">[XR]</span>';
 
-            // Close the dialog opened by openDialog().
-            if ($top.fn && $top.fn.dialog) {
-              $top('.xrnote-dialog').dialog('close');
+              editor.insertContent(marker);
+
+              $.post(st.basePath + 'xrnote/anchors/' + st.nid, {
+                op: 'save',
+                uuid: uuid,
+                note_nid: d.note_nid,
+                selector: JSON.stringify({
+                  pos: { start: start, end: end },
+                  quote: { exact: exact, prefix: prefix, suffix: suffix }
+                })
+              });
+
+              // Close the dialog you opened via jQuery UI.
+              if ($top.fn && $top.fn.dialog) {
+                $top('.xrnote-dialog').dialog('close');
+              }
+
+              // One-shot unbind (namespaced).
+              $bus.off('xrnote-insert.' + uuid);
             }
-
-            // One-shot unbind (namespace by uuid so multiple clicks don’t conflict).
-            $root.off('xrnote-insert.' + uuid);
+            catch (err) {
+              // If something is going wrong, we want to SEE it.
+              console.error('[xrnote] onInsert error', err);
+              alert('XRNote onInsert error: ' + (err && err.message ? err.message : err));
+            }
           }
 
-          $root.on('xrnote-insert.' + uuid, onInsert);
+          // Bind as one-shot via namespace
+          $bus.off('xrnote-insert.' + uuid).on('xrnote-insert.' + uuid, onInsert);
         }
       });
       return {};
