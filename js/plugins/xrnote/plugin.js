@@ -37,7 +37,7 @@
           // SMOKE TEST: prove the click handler runs.
           editor.insertContent('@');
           if (win.console) console.log('XRNote button clicked');
-          return; // <- remove/comment this line after the test
+          //return; // <- remove/comment this line after the test
 
           var sel = editor.selection, rng = sel.getRng();
           var exact  = sel.getContent({ format: 'text' }) || '';
