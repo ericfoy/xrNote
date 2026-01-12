@@ -11,6 +11,11 @@
 
   // Use this version with error handling
   function openDialog(url, title) {
+    if (typeof $.fn.dialog !== 'function') {
+      alert('XRNote: jQuery UI dialog is not loaded (missing system/ui.dialog).');
+      return;
+    }
+
     $.get(url)
       .done(function (html) {
         var $d = $('<div class="xrnote-dialog"></div>').append(html).appendTo('body');
@@ -22,8 +27,8 @@
         });
       })
       .fail(function (xhr) {
-        alert('XRNote dialog failed: HTTP ' + xhr.status);
-        if (win.console) console.error('XRNote dialog GET failed', url, xhr);
+        alert('XRNote modal GET failed: HTTP ' + xhr.status + '\n' + url);
+        if (win.console) console.error('XRNote modal GET failed', { url: url, xhr: xhr });
       });
   }
 
@@ -49,6 +54,8 @@
           var uuid = 'xr-' + Date.now() + '-' + Math.floor(Math.random()*1e6);
           var st = Backdrop.settings.xrnote || {};
           var url = st.basePath + 'xrnote/modal/add/' + st.nid + '/' + uuid;
+
+          if (win.console) console.log('XRNote settings/url', { st: st, url: url });
 
           openDialog(url, 'Insert XRNote');
 
