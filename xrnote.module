@@ -78,6 +78,7 @@ function xrnote_form_alter(&$form, &$form_state, $form_id) {
   );
   
   $form['#attached']['library'][] = array('system', 'ui.dialog');
+  $form['#attached']['library'][] = array('system', 'backdrop.dialog.ajax');
   //$form['#attached']['js'][]  = backdrop_get_path('module','xrnote') . '/js/plugins/xrnote/plugin.js';
   $form['#attached']['js'][]  = backdrop_get_path('module','xrnote') . '/js/xrnote.sidebar.js';
   $form['#attached']['css'][] = backdrop_get_path('module','xrnote') . '/css/xrnote.admin.css';
@@ -234,15 +235,13 @@ function xrnote_modal_add_form_ajax($form, &$form_state) {
     return array('#type' => 'ajax', '#commands' => $commands);
   }
 
-  $payload = array('uuid' => $uuid, 'note_nid' => $nid);
+  $commands[] = ajax_command_invoke('body', 'trigger', array(
+    'xrnote-insert',
+    array('uuid' => $uuid, 'note_nid' => $nid),
+  ));
 
-  $js =
-    'jQuery("body").trigger("xrnote-insert", ' . json_encode($payload) . ');' .
-    'if (window.jQuery && window.jQuery.fn && window.jQuery.fn.dialog) {' .
-      'window.jQuery(".xrnote-dialog").dialog("close");' .
-    '}';
-
-  $commands[] = ajax_command_script($js);
+  // Close the jQuery UI dialog.
+  $commands[] = ajax_command_close_dialog('.xrnote-dialog');
 
   return array('#type' => 'ajax', '#commands' => $commands);
 }

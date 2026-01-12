@@ -62,32 +62,23 @@
           openDialog(url, 'Insert XRNote');
 
           // Listen for the server-triggered jQuery event.
-          function onInsert(e, payload) {
-            var d = payload || {};
+          function onInsert(e, d) {
+            d = d || {};
             if (d.uuid !== uuid || !d.note_nid) return;
 
-            var marker =
-              '<span class="xrnote-anchor" data-xr-uuid="' + uuid + '" data-note-nid="' + d.note_nid + '">[XR]</span>';
-
+            var marker = '<span class="xrnote-anchor" data-xr-uuid="' + uuid +
+                        '" data-note-nid="' + d.note_nid + '">[XR]</span>';
             editor.insertContent(marker);
 
             $.post(st.basePath + 'xrnote/anchors/' + st.nid, {
               op: 'save',
               uuid: uuid,
               note_nid: d.note_nid,
-              selector: JSON.stringify({
-                pos: { start: start, end: end },
-                quote: { exact: exact, prefix: prefix, suffix: suffix }
-              })
+              selector: JSON.stringify({ pos:{start:start,end:end}, quote:{exact:exact,prefix:prefix,suffix:suffix} })
             });
 
-            // Close + clean up the dialog you created in openDialog().
-            $('.xrnote-dialog').dialog('close');
-
-            // Unbind this one-shot handler.
             $('body').off('xrnote-insert', onInsert);
           }
-
           $('body').on('xrnote-insert', onInsert);
         }
       });
