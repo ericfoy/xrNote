@@ -139,7 +139,28 @@
           $doc.off('xrnote-insert.' + uuid, onInsert).on('xrnote-insert.' + uuid, onInsert);
 
           // Open the modal.
-          openDialog(url, 'Insert XRNote');
+          // OLD CODE --> openDialog(url, 'Insert XRNote');
+          // NEW CODE using Backdrop AJAX dialogs:
+          // Use the top window's jQuery (TinyMCE may run in an iframe).
+          var $page = (win.top && win.top.jQuery) ? win.top.jQuery : $;
+
+          // Create a hidden AJAX dialog link.
+          var $a = $page('<a class="use-ajax" data-dialog="true" style="display:none"></a>')
+            .attr('href', url)
+            .attr('data-dialog-options', JSON.stringify({
+              width: 520,
+              modal: true,
+              title: 'Insert XRNote'
+            }))
+            .appendTo($page('body'));
+
+          // Ask Backdrop's AJAX system to handle it.
+          $a.trigger('click');
+
+          // Clean up the temporary element.
+          setTimeout(function () { $a.remove(); }, 1000);
+          // ^^NEW CODE^^ //
+
         }
       });
 
