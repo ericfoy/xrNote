@@ -227,24 +227,23 @@ function xrnote_modal_add_form_ajax($form, &$form_state) {
   $uuid = isset($res['uuid']) ? $res['uuid'] : '';
   $nid  = !empty($res['note_nid']) ? (int) $res['note_nid'] : 0;
 
-  if (!$nid || $uuid === '') {
-    return array(
-      ajax_command_alert(t('Nothing to insert. Select an existing note or enter text to create one.')),
-    );
-  }
-
   $commands = array();
 
-  // Trigger a jQuery event carrying the data.
+  if (!$nid || $uuid === '') {
+    $commands[] = ajax_command_alert(t('Nothing to insert. Select an existing note or enter text to create one.'));
+    return array('#type' => 'ajax', '#commands' => $commands);
+  }
+
+  // Fire the jQuery event your TinyMCE plugin listens for: $(document).on('xrnote-insert', ...)
   $commands[] = ajax_command_invoke('body', 'trigger', array('xrnote-insert', array(
     'uuid' => $uuid,
     'note_nid' => $nid,
   )));
 
-  // Close the jQuery UI dialog.
-  $commands[] = ajax_command_invoke('.ui-dialog-content', 'dialog', array('close'));
+  // Close *your* jQuery UI dialog (the div you created has class xrnote-dialog).
+  $commands[] = ajax_command_invoke('.xrnote-dialog', 'dialog', array('close'));
 
-  return $commands;
+  return array('#type' => 'ajax', '#commands' => $commands);
 }
 /* ^^ NEW STUFF ^^ */
 
