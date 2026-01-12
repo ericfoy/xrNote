@@ -38,8 +38,12 @@
   }
 
   function register() {
-    if (!win.tinymce || !win.tinymce.PluginManager) return setTimeout(register, 200);
+    if (!win.tinymce || !win.tinymce.PluginManager) {
+      return setTimeout(register, 200);
+    }
+
     tinymce.PluginManager.add('xrnote', function (editor) {
+
       editor.ui.registry.addButton('xrnote', {
         text: 'XRNote',
         onAction: function () {
@@ -47,37 +51,54 @@
           // SMOKE TEST: prove the click handler runs.
           editor.insertContent('@');
           if (win.console) console.log('XRNote button clicked');
-          //return; // <- remove/comment this line after the test
+          // NOTE: Do NOT return here, or the dialog/event flow will never run.
+          // return;
 
           var sel = editor.selection, rng = sel.getRng();
-          var exact  = sel.getContent({ format: 'text' }) || '';
+          var exact   = sel.getContent({ format: 'text' }) || '';
           var textAll = editor.getContent({ format: 'text' }) || '';
-          var start = rng.startOffset || 0, end = rng.endOffset || start;
-          var prefix = textAll.substr(Math.max(start - 20, 0), 20);
-          var suffix = textAll.substr(end, 20);
+          var start   = rng.startOffset || 0;
+          var end     = rng.endOffset || start;
+          var prefix  = textAll.substr(Math.max(start - 20, 0), 20);
+          var suffix  = textAll.substr(end, 20);
 
-          var uuid = 'xr-' + Date.now() + '-' + Math.floor(Math.random()*1e6);
-          var st = Backdrop.settings.xrnote || {};
-          var url = st.basePath + 'xrnote/modal/add/' + st.nid + '/' + uuid;
+          var uuid = 'xr-' + Date.now() + '-' + Math.floor(Math.random() * 1e6);
 
+          // Prefer Backdrop.settings from the top window (TinyMCE can be iframed).
+          var st = (win.top && win.top.Backdrop && win.top.Backdrop.settings && win.top.Backdrop.settings.xrnote)
+            ? win.top.Backdrop.settings.xrnote
+            : (Backdrop.settings.xrnote || {});
+
+          // Resolve basePath robustly.
+          var basePath =
+            (st && typeof st.basePath === 'string') ? st.basePath :
+            (win.top && win.top.Backdrop && win.top.Backdrop.settings && win.top.Backdrop.settings.basePath) ? win.top.Backdrop.settings.basePath :
+            (Backdrop.settings && Backdrop.settings.basePath) ? Backdrop.settings.basePath :
+            '/';
+
+          var nid = st && st.nid ? st.nid : null;
+          if (!nid) {
+            alert('XRNote: missing Backdrop.settings.xrnote.nid');
+            return;
+          }
+
+          var url = basePath + 'xrnote/modal/add/' + nid + '/' + uuid;
           if (win.console) console.log('XRNote settings/url', { st: st, url: url });
 
-          openDialog(url, 'Insert XRNote');
-
-          // Use the top window’s jQuery + DOM so we’re listening on the same "body"
-          // that Backdrop Ajax triggers on.
+          // Listen for the insert event on the TOP document, not the TinyMCE iframe.
           var $top = (win.top && win.top.jQuery) ? win.top.jQuery : $;
-          var $bus = $top('body');
+          var $doc = $top(win.top ? win.top.document : document);
 
-          // Optional: one-time global debug (comment out after working)
-          $bus.off('xrnote-insert._xrdebug').on('xrnote-insert._xrdebug', function (e, payload) {
-            console.log('[xrnote DEBUG] event seen on top body:', payload);
+          // Optional debug: logs whenever any xrnote-insert is seen in the top doc.
+          // Comment out once working.
+          $doc.off('xrnote-insert._xrdebug').on('xrnote-insert._xrdebug', function (e, payload) {
+            if (win.top && win.top.console) win.top.console.log('[xrnote DEBUG] event seen:', payload);
           });
 
           function onInsert(e, payload) {
             try {
               var d = payload || {};
-              console.log('[xrnote] onInsert fired', d);
+              if (win.top && win.top.console) win.top.console.log('[xrnote] onInsert fired', d);
 
               if (d.uuid !== uuid || !d.note_nid) return;
 
@@ -87,7 +108,10 @@
 
               editor.insertContent(marker);
 
-              $.post(st.basePath + 'xrnote/anchors/' + st.nid, {
+              // Persist the anchor (async; ok if it finishes after dialog close).
+              $top.post
+              $top
+              $.post(basePath + 'xrnote/anchors/' + nid, {
                 op: 'save',
                 uuid: uuid,
                 note_nid: d.note_nid,
@@ -97,25 +121,28 @@
                 })
               });
 
-              // Close the dialog you opened via jQuery UI.
+              // Close the dialog we opened (jQuery UI dialog).
               if ($top.fn && $top.fn.dialog) {
                 $top('.xrnote-dialog').dialog('close');
               }
 
-              // One-shot unbind (namespaced).
-              $bus.off('xrnote-insert.' + uuid);
+              // Unbind one-shot handler.
+              $doc.off('xrnote-insert.' + uuid, onInsert);
             }
             catch (err) {
-              // If something is going wrong, we want to SEE it.
-              console.error('[xrnote] onInsert error', err);
+              if (win.top && win.top.console) win.top.console.error('[xrnote] onInsert error', err);
               alert('XRNote onInsert error: ' + (err && err.message ? err.message : err));
             }
           }
 
-          // Bind as one-shot via namespace
-          $bus.off('xrnote-insert.' + uuid).on('xrnote-insert.' + uuid, onInsert);
+          // Bind one-shot handler namespaced by uuid.
+          $doc.off('xrnote-insert.' + uuid, onInsert).on('xrnote-insert.' + uuid, onInsert);
+
+          // Open the modal.
+          openDialog(url, 'Insert XRNote');
         }
       });
+
       return {};
     });
   }
