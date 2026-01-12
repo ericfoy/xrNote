@@ -193,23 +193,27 @@ function xrnote_modal_add_form_submit($form, &$form_state) {
   $nid = !empty($form_state['values']['note_nid']) ? (int) $form_state['values']['note_nid'] : 0;
 
   if (!$nid) {
-    $body = trim((string) $form_state['values']['new_body']);
-    if ($body !== '') {
-      $n = (object) array(
-        'type' => 'xrnote',
-        'title' => 'XRNote ' . REQUEST_TIME,
-        'status' => 1,
-        'language' => LANGUAGE_NONE,
-      );
-      node_object_prepare($n);
+$body = trim((string) $form_state['values']['new_body']);
+if ($body !== '') {
 
-      $lang = LANGUAGE_NONE;
-      $n->field_xr_body[$lang][0]['value'] = $body;
+  // Backdrop: create a real Node entity (not stdClass).
+  $n = entity_create('node', array(
+    'type'     => 'xrnote',
+    'title'    => 'XRNote ' . REQUEST_TIME,
+    'status'   => 1,
+    'langcode' => LANGUAGE_NONE,
+  ));  // :contentReference[oaicite:1]{index=1}
 
-      node_save($n);
-      $nid = !empty($n->nid) ? (int) $n->nid : 0;
-    }
-  }
+  // Fill your field(s).
+  $lang = LANGUAGE_NONE;
+  $n->field_xr_body[$lang][0]['value'] = $body;
+
+  // Save (either is fine).
+  $n->save();      // preferred in Backdrop  :contentReference[oaicite:2]{index=2}
+  // node_save($n); // wrapper also exists; requires Node $node :contentReference[oaicite:3]{index=3}
+
+  $nid = !empty($n->nid) ? (int) $n->nid : 0;
+}
 
   // Stash for the AJAX callback.
   $form_state['storage']['xrnote_result'] = array(
