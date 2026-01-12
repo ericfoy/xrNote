@@ -59,6 +59,16 @@
 
               editor.insertContent(marker);
 
+              var BD = (win.top && win.top.Backdrop) ? win.top.Backdrop : Backdrop;
+              var $page = (win.top && win.top.jQuery) ? win.top.jQuery : $;
+              // Close the dialog that contains our form wrapper.
+              var $dlg = $page('#xrnote-modal-add-wrapper').closest('.ui-dialog-content');
+              if ($dlg.length && BD && BD.dialog) {
+                BD.dialog($dlg).close();
+              } else if ($page.fn && $page.fn.dialog && $dlg.length) {
+                $dlg.dialog('close');
+              }
+
               // Persist the anchor (async).
               ($page.post || $.post)(basePath + 'xrnote/anchors/' + nid, {
                 op: 'save',

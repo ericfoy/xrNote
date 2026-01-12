@@ -147,13 +147,15 @@ function xrnote_modal_add_form($form, &$form_state, $parent_node, $uuid) {
   $form['actions']['insert'] = array(
     '#type' => 'submit',
     '#value' => t('Insert'),
-
-    // Make sure OUR submit runs.
     '#submit' => array('xrnote_modal_add_form_submit'),
-
-    // Avoid unrelated validation issues while debugging.
-    '#limit_validation_errors' => array(),
-
+  /* optional validation limiters:
+    '#limit_validation_errors' => array(
+      array('note_nid'),
+      array('new_body'),
+      array('xr_uuid'),
+      array('parent_nid'),
+    ),
+  */
     '#ajax' => array(
       'callback' => 'xrnote_modal_add_form_ajax',
     ),
@@ -163,9 +165,17 @@ function xrnote_modal_add_form($form, &$form_state, $parent_node, $uuid) {
 }
 
 function xrnote_modal_add_form_submit($form, &$form_state) {
-  // Entity autocomplete may already be numeric; casting is fine.
-  $nid = !empty($form_state['values']['note_nid']) ? (int) $form_state['values']['note_nid'] : 0;
+  // Parse entity_autocomplete value safely (can be "Title (123)" or just "123").
+  $raw = isset($form_state['values']['note_nid']) ? $form_state['values']['note_nid'] : '';
+  $nid = 0;
+  if (is_numeric($raw)) {
+    $nid = (int) $raw;
+  }
+  elseif (is_string($raw) && preg_match('/\((\d+)\)\s*$/', $raw, $m)) {
+    $nid = (int) $m[1];
+  }
 
+  // If no existing note selected, create one from new_body.
   if (!$nid) {
     $body = trim((string) ($form_state['values']['new_body'] ?? ''));
     if ($body !== '') {
@@ -175,16 +185,13 @@ function xrnote_modal_add_form_submit($form, &$form_state) {
         'status'   => 1,
         'langcode' => LANGUAGE_NONE,
       ));
-
       $lang = LANGUAGE_NONE;
       $n->field_xr_body[$lang][0]['value'] = $body;
-
       $n->save();
       $nid = !empty($n->nid) ? (int) $n->nid : 0;
     }
   }
 
-  // Put it somewhere simple for the ajax callback.
   $form_state['xrnote_note_nid'] = $nid;
 }
 
