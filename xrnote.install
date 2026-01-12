@@ -117,13 +117,18 @@ function xrnote_install() {
 
 function xrnote_uninstall() {
   $bundle = 'xrnote';
+
   if ($inst = field_info_instance('node', 'field_xr_icon',  $bundle)) field_delete_instance($inst);
   if ($inst = field_info_instance('node', 'field_xr_lists', $bundle)) field_delete_instance($inst);
   if (field_info_field('field_xr_icon'))  field_delete_field('field_xr_icon');
   if (field_info_field('field_xr_lists')) field_delete_field('field_xr_lists');
   if ($inst = field_info_instance('node', 'field_xr_body', $bundle)) field_delete_instance($inst);
   if (field_info_field('field_xr_body')) field_delete_field('field_xr_body');
-  if ($type = node_type_load($bundle)) node_type_delete($type);
+
+  // Delete the content type by machine name (string), not by object.
+  if (node_type_load($bundle)) {
+    node_type_delete($bundle);
+  }
 }
 
 function _xrnote_default_widget($type) {
