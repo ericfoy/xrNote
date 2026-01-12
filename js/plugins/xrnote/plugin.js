@@ -1,41 +1,4 @@
 (function ($, Backdrop, win) {
-  // Use this version normally
-  /*
-  function openDialog(url, title) {
-    $.get(url).done(function (html) {
-      var $d = $('<div class="xrnote-dialog"></div>').append(html).appendTo('body');
-      Backdrop.attachBehaviors($d[0]);
-      $d.dialog({ title: title || 'Insert XRNote', modal: true, width: 520, close: function(){ $d.remove(); } });
-    });
-  }
-  */
-
-  // Use this version with error handling
-  function openDialog(url, title) {
-    if (typeof $.fn.dialog !== 'function') {
-      alert('XRNote: jQuery UI dialog is not loaded (missing system/ui.dialog).');
-      return;
-    }
-
-    $.get(url)
-      .done(function (html) {
-        var $d = $('<div class="xrnote-dialog"></div>').append(html).appendTo('body');
-        // Important: wire up #ajax behaviors inside the newly-added markup.
-        if (Backdrop && Backdrop.attachBehaviors) {
-          Backdrop.attachBehaviors($d[0]);
-        }
-        $d.dialog({
-          title: title || 'Insert XRNote',
-          modal: true,
-          width: 520,
-          close: function(){ $d.remove(); }
-        });
-      })
-      .fail(function (xhr) {
-        alert('XRNote modal GET failed: HTTP ' + xhr.status + '\n' + url);
-        if (win.console) console.error('XRNote modal GET failed', { url: url, xhr: xhr });
-      });
-  }
 
   function register() {
     if (!win.tinymce || !win.tinymce.PluginManager) {
@@ -51,8 +14,7 @@
           // SMOKE TEST: prove the click handler runs.
           editor.insertContent('@');
           if (win.console) console.log('XRNote button clicked');
-          // NOTE: Do NOT return here, or the dialog/event flow will never run.
-          // return;
+          // return; // keep commented out
 
           var sel = editor.selection, rng = sel.getRng();
           var exact   = sel.getContent({ format: 'text' }) || '';
@@ -64,19 +26,15 @@
 
           var uuid = 'xr-' + Date.now() + '-' + Math.floor(Math.random() * 1e6);
 
-          // Prefer Backdrop.settings from the top window (TinyMCE can be iframed).
-          var st = (win.top && win.top.Backdrop && win.top.Backdrop.settings && win.top.Backdrop.settings.xrnote)
-            ? win.top.Backdrop.settings.xrnote
-            : (Backdrop.settings.xrnote || {});
+          // Always prefer TOP window Backdrop + jQuery (TinyMCE may be iframed).
+          var BD = (win.top && win.top.Backdrop) ? win.top.Backdrop : Backdrop;
+          var $page = (win.top && win.top.jQuery) ? win.top.jQuery : $;
 
-          // Resolve basePath robustly.
-          var basePath =
-            (st && typeof st.basePath === 'string') ? st.basePath :
-            (win.top && win.top.Backdrop && win.top.Backdrop.settings && win.top.Backdrop.settings.basePath) ? win.top.Backdrop.settings.basePath :
-            (Backdrop.settings && Backdrop.settings.basePath) ? Backdrop.settings.basePath :
-            '/';
-
+          // Pull settings from the top window if available.
+          var st = (BD && BD.settings && BD.settings.xrnote) ? BD.settings.xrnote : (Backdrop.settings.xrnote || {});
+          var basePath = (st && typeof st.basePath === 'string') ? st.basePath : (BD && BD.settings && BD.settings.basePath ? BD.settings.basePath : '/');
           var nid = st && st.nid ? st.nid : null;
+
           if (!nid) {
             alert('XRNote: missing Backdrop.settings.xrnote.nid');
             return;
@@ -85,15 +43,8 @@
           var url = basePath + 'xrnote/modal/add/' + nid + '/' + uuid;
           if (win.console) console.log('XRNote settings/url', { st: st, url: url });
 
-          // Listen for the insert event on the TOP document, not the TinyMCE iframe.
-          var $top = (win.top && win.top.jQuery) ? win.top.jQuery : $;
-          var $doc = $top(win.top ? win.top.document : document);
-
-          // Optional debug: logs whenever any xrnote-insert is seen in the top doc.
-          // Comment out once working.
-          $doc.off('xrnote-insert._xrdebug').on('xrnote-insert._xrdebug', function (e, payload) {
-            if (win.top && win.top.console) win.top.console.log('[xrnote DEBUG] event seen:', payload);
-          });
+          // Listen for the insert event on the TOP document (event bubbles from body).
+          var $doc = $page(win.top ? win.top.document : document);
 
           function onInsert(e, payload) {
             try {
@@ -108,10 +59,8 @@
 
               editor.insertContent(marker);
 
-              // Persist the anchor (async; ok if it finishes after dialog close).
-              $top.post
-              $top
-              $.post(basePath + 'xrnote/anchors/' + nid, {
+              // Persist the anchor (async).
+              ($page.post || $.post)(basePath + 'xrnote/anchors/' + nid, {
                 op: 'save',
                 uuid: uuid,
                 note_nid: d.note_nid,
@@ -121,12 +70,12 @@
                 })
               });
 
-              // Close the dialog we opened (jQuery UI dialog).
-              if ($top.fn && $top.fn.dialog) {
-                $top('.xrnote-dialog').dialog('close');
+              // If your dialog is the old jQuery UI one, close it (harmless if none).
+              if ($page.fn && $page.fn.dialog) {
+                $page('.xrnote-dialog').dialog('close');
               }
 
-              // Unbind one-shot handler.
+              // One-shot unbind.
               $doc.off('xrnote-insert.' + uuid, onInsert);
             }
             catch (err) {
@@ -135,16 +84,15 @@
             }
           }
 
-          // Bind one-shot handler namespaced by uuid.
+          // Bind one-shot handler.
           $doc.off('xrnote-insert.' + uuid, onInsert).on('xrnote-insert.' + uuid, onInsert);
 
-          // Open the modal.
-          // OLD CODE --> openDialog(url, 'Insert XRNote');
-          // NEW CODE using Backdrop AJAX dialogs:
-          // Use the top window's jQuery (TinyMCE may run in an iframe).
-          var $page = (win.top && win.top.jQuery) ? win.top.jQuery : $;
+          // Open Backdrop AJAX dialog via injected link.
+          if (!BD || !BD.attachBehaviors) {
+            alert('XRNote: Backdrop.attachBehaviors() not available (missing backdrop.ajax/backdrop.dialog.ajax on page).');
+            return;
+          }
 
-          // Create a hidden AJAX dialog link.
           var $a = $page('<a class="use-ajax" data-dialog="true" style="display:none"></a>')
             .attr('href', url)
             .attr('data-dialog-options', JSON.stringify({
@@ -154,19 +102,21 @@
             }))
             .appendTo($page('body'));
 
-          // Ask Backdrop's AJAX system to handle it.
+          // CRITICAL: attach behaviors so "use-ajax" is wired up.
+          BD.attachBehaviors($a[0]);
+
+          // Trigger click to open the dialog.
           $a.trigger('click');
 
-          // Clean up the temporary element.
-          setTimeout(function () { $a.remove(); }, 1000);
-          // ^^NEW CODE^^ //
-
+          // Cleanup.
+          setTimeout(function () { $a.remove(); }, 2000);
         }
       });
 
       return {};
     });
   }
+
   register();
 
 })(jQuery, Backdrop, window);

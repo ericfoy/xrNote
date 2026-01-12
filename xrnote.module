@@ -63,27 +63,36 @@ function xrnote_access_place($node) {
  * Replace 'xrnote' with your actual content type that has "Main Text".
  */
 function xrnote_form_alter(&$form, &$form_state, $form_id) {
-  if (($form_id !== 'node_form' && strpos($form_id, '_node_form') === FALSE) || empty($form['#node'])) 
+  if (($form_id !== 'node_form' && strpos($form_id, '_node_form') === FALSE) || !isset($form['#node'])) {
     return;
+  }
 
   $node = $form['#node'];
-  if (!xrnote_is_document_node($node)) 
+  if (!xrnote_is_document_node($node)) {
     return;
+  }
 
-  // Attach editor UI, sidebar, assets.
   $form['xrnote_sidebar'] = array(
-    '#type'=>'markup', 
-    '#markup'=>'<div id="xrnote-sidebar" class="xrnote-sidebar"></div>', 
-    '#weight'=>-10
+    '#type' => 'markup',
+    '#markup' => '<div id="xrnote-sidebar" class="xrnote-sidebar"></div>',
+    '#weight' => -10,
   );
-  
-  $form['#attached']['library'][] = array('system', 'ui.dialog');
+
   $form['#attached']['library'][] = array('system', 'backdrop.ajax');
   $form['#attached']['library'][] = array('system', 'backdrop.dialog.ajax');
-  //$form['#attached']['js'][]  = backdrop_get_path('module','xrnote') . '/js/plugins/xrnote/plugin.js';
-  $form['#attached']['js'][]  = backdrop_get_path('module','xrnote') . '/js/xrnote.sidebar.js';
-  $form['#attached']['css'][] = backdrop_get_path('module','xrnote') . '/css/xrnote.admin.css';
-  $form['#attached']['js'][] = array('type'=>'setting','data'=>array('xrnote'=>array('nid'=>$node->nid,'basePath'=>base_path())));
+
+  $form['#attached']['js'][]  = backdrop_get_path('module', 'xrnote') . '/js/xrnote.sidebar.js';
+  $form['#attached']['css'][] = backdrop_get_path('module', 'xrnote') . '/css/xrnote.admin.css';
+
+  $form['#attached']['js'][] = array(
+    'type' => 'setting',
+    'data' => array(
+      'xrnote' => array(
+        'nid' => (int) $node->nid,
+        'basePath' => base_path(),
+      ),
+    ),
+  );
 }
 
 function xrnote_node_update($node) {
