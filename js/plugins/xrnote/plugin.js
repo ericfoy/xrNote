@@ -4,6 +4,7 @@
   function openDialog(url, title) {
     $.get(url).done(function (html) {
       var $d = $('<div class="xrnote-dialog"></div>').append(html).appendTo('body');
+      Backdrop.attachBehaviors($d[0]);
       $d.dialog({ title: title || 'Insert XRNote', modal: true, width: 520, close: function(){ $d.remove(); } });
     });
   }
@@ -19,6 +20,7 @@
     $.get(url)
       .done(function (html) {
         var $d = $('<div class="xrnote-dialog"></div>').append(html).appendTo('body');
+        Backdrop.attachBehaviors($d[0]);
         $d.dialog({
           title: title || 'Insert XRNote',
           modal: true,
@@ -59,20 +61,25 @@
 
           openDialog(url, 'Insert XRNote');
 
-          function onInsert(ev) {
-            var d = ev.detail || {};
+          function onInsert(e, d) {
+            d = d || {};
             if (d.uuid !== uuid || !d.note_nid) return;
-            var marker = '<span class="xrnote-anchor" data-xr-uuid="' + uuid + '" data-note-nid="' + d.note_nid + '">[XR]</span>';
+
+            var marker = '<span class="xrnote-anchor" data-xr-uuid="' + uuid +
+                        '" data-note-nid="' + d.note_nid + '">[XR]</span>';
             editor.insertContent(marker);
+
             $.post(st.basePath + 'xrnote/anchors/' + st.nid, {
               op: 'save',
               uuid: uuid,
               note_nid: d.note_nid,
               selector: JSON.stringify({ pos:{start:start,end:end}, quote:{exact:exact,prefix:prefix,suffix:suffix} })
             });
-            win.removeEventListener('xrnote-insert', onInsert);
+
+            $(document).off('xrnote-insert', onInsert);
           }
-          win.addEventListener('xrnote-insert', onInsert);
+
+          $(document).on('xrnote-insert', onInsert);
         }
       });
       return {};

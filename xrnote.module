@@ -97,7 +97,7 @@ function xrnote_node_view($node, $view_mode, $langcode) {
     $node->content['body'][$lang][0]['#markup'] = xrnote_inline_replace($html);
   }
 }
-
+/* OLD STUFF
 function xrnote_modal_add($parent_node, $uuid) {
   // Build a tiny form: create new xrnote or select existing “stock” note.
   $form = array();
@@ -143,6 +143,106 @@ function xrnote_modal_add_submit($form, &$form_state) {
   print $script;
   backdrop_exit();
 }
+*/
+/* NEW STUFF */
+function xrnote_modal_add($parent_node, $uuid) {
+  return backdrop_get_form('xrnote_modal_add_form', $parent_node, $uuid);
+}
+
+function xrnote_modal_add_form($form, &$form_state, $parent_node, $uuid) {
+  $form['#prefix'] = '<div id="xrnote-modal-add-wrapper">';
+  $form['#suffix'] = '</div>';
+
+  $form['parent_nid'] = array(
+    '#type' => 'value',
+    '#value' => (int) $parent_node->nid,
+  );
+  $form['xr_uuid'] = array(
+    '#type' => 'value',
+    '#value' => $uuid,
+  );
+
+  $form['note_nid'] = array(
+    '#type' => 'entity_autocomplete',
+    '#title' => t('Select existing XRNote'),
+    '#target_type' => 'node',
+    '#selection_settings' => array('target_bundles' => array('xrnote' => 'xrnote')),
+    '#required' => FALSE,
+  );
+
+  $form['new_body'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Or create new'),
+    '#rows' => 6,
+  );
+
+  $form['actions'] = array('#type' => 'actions');
+  $form['actions']['insert'] = array(
+    '#type' => 'submit',
+    '#value' => t('Insert'),
+    '#ajax' => array(
+      'callback' => 'xrnote_modal_add_form_ajax',
+      'wrapper' => 'xrnote-modal-add-wrapper',
+    ),
+  );
+
+  return $form;
+}
+
+function xrnote_modal_add_form_submit($form, &$form_state) {
+  $nid = !empty($form_state['values']['note_nid']) ? (int) $form_state['values']['note_nid'] : 0;
+
+  if (!$nid) {
+    $body = trim((string) $form_state['values']['new_body']);
+    if ($body !== '') {
+      $n = (object) array(
+        'type' => 'xrnote',
+        'title' => 'XRNote ' . REQUEST_TIME,
+        'status' => 1,
+        'language' => LANGUAGE_NONE,
+      );
+      node_object_prepare($n);
+
+      $lang = LANGUAGE_NONE;
+      $n->field_xr_body[$lang][0]['value'] = $body;
+
+      node_save($n);
+      $nid = !empty($n->nid) ? (int) $n->nid : 0;
+    }
+  }
+
+  // Stash for the AJAX callback.
+  $form_state['storage']['xrnote_result'] = array(
+    'uuid' => (string) $form_state['values']['xr_uuid'],
+    'note_nid' => $nid,
+  );
+}
+
+function xrnote_modal_add_form_ajax($form, &$form_state) {
+  $res = isset($form_state['storage']['xrnote_result']) ? $form_state['storage']['xrnote_result'] : array();
+  $uuid = isset($res['uuid']) ? $res['uuid'] : '';
+  $nid  = !empty($res['note_nid']) ? (int) $res['note_nid'] : 0;
+
+  if (!$nid || $uuid === '') {
+    return array(
+      ajax_command_alert(t('Nothing to insert. Select an existing note or enter text to create one.')),
+    );
+  }
+
+  $commands = array();
+
+  // Trigger a jQuery event carrying the data.
+  $commands[] = ajax_command_invoke('body', 'trigger', array('xrnote-insert', array(
+    'uuid' => $uuid,
+    'note_nid' => $nid,
+  )));
+
+  // Close the jQuery UI dialog.
+  $commands[] = ajax_command_invoke('.ui-dialog-content', 'dialog', array('close'));
+
+  return $commands;
+}
+/* ^^ NEW STUFF ^^ */
 
 function xrnote_ajax_sidebar($node) {
   $op = isset($_POST['op']) ? $_POST['op'] : '';
