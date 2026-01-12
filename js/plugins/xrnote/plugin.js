@@ -12,7 +12,7 @@
         onAction: function () {
 
           // SMOKE TEST: prove the click handler runs.
-          editor.insertContent('@');
+          // editor.insertContent('@');
           if (win.console) console.log('XRNote button clicked');
           // return; // keep commented out
 
@@ -47,54 +47,61 @@
           var $doc = $page(win.top ? win.top.document : document);
 
           function onInsert(e, payload) {
-            if (win.top && win.top.console) {
-              win.top.console.log('[xrnote] payload typeof=', typeof payload, 'payload=', payload);
-            }
-            try {
-              var d = payload || {};
-              if (win.top && win.top.console) win.top.console.log('[xrnote] onInsert fired', d);
+            var d = payload || {};
+            if (win.top && win.top.console) win.top.console.log('[xrnote] onInsert fired', d);
 
-              if (d.uuid !== uuid || !d.note_nid) return;
+            // Ignore other inserts.
+            if (d.uuid !== uuid || !d.note_nid) return;
 
-              var marker =
-                '<span class="xrnote-anchor" data-xr-uuid="' + uuid +
-                '" data-note-nid="' + d.note_nid + '">[XR]</span>';
+            // Unbind immediately (one-shot) to avoid any chance of re-entry.
+            $doc.off('xrnote-insert.' + uuid, onInsert);
 
-              editor.insertContent(marker);
+            // IMPORTANT: defer heavy work until after Backdrop finishes its AJAX cycle.
+            setTimeout(function () {
+              try {
+                var BD = (win.top && win.top.Backdrop) ? win.top.Backdrop : Backdrop;
+                var $page = (win.top && win.top.jQuery) ? win.top.jQuery : $;
 
-              var BD = (win.top && win.top.Backdrop) ? win.top.Backdrop : Backdrop;
-              var $page = (win.top && win.top.jQuery) ? win.top.jQuery : $;
-              // Close the dialog that contains our form wrapper.
-              var $dlg = $page('#xrnote-modal-add-wrapper').closest('.ui-dialog-content');
-              if ($dlg.length && BD && BD.dialog) {
-                BD.dialog($dlg).close();
-              } else if ($page.fn && $page.fn.dialog && $dlg.length) {
-                $dlg.dialog('close');
-              }
+                // Close the Backdrop dialog that contains our form wrapper (if it’s still open).
+                var $dlg = $page('#xrnote-modal-add-wrapper').closest('.ui-dialog-content');
+                if ($dlg.length) {
+                  if (BD && BD.dialog) {
+                    BD.dialog($dlg).close();
+                  }
+                  else if ($page.fn && $page.fn.dialog) {
+                    $dlg.dialog('close');
+                  }
+                }
 
-              // Persist the anchor (async).
-              ($page.post || $.post)(basePath + 'xrnote/anchors/' + nid, {
-                op: 'save',
-                uuid: uuid,
-                note_nid: d.note_nid,
-                selector: JSON.stringify({
-                  pos: { start: start, end: end },
-                  quote: { exact: exact, prefix: prefix, suffix: suffix }
+                // Insert the marker in TinyMCE.
+                var marker =
+                  '<span class="xrnote-anchor" data-xr-uuid="' + uuid +
+                  '" data-note-nid="' + d.note_nid + '">[XR]</span>';
+
+                editor.insertContent(marker);
+
+                // Persist the anchor (async).
+                $page.post(basePath + 'xrnote/anchors/' + nid, {
+                  op: 'save',
+                  uuid: uuid,
+                  note_nid: d.note_nid,
+                  selector: JSON.stringify({
+                    pos: { start: start, end: end },
+                    quote: { exact: exact, prefix: prefix, suffix: suffix }
+                  })
                 })
-              });
+                .fail(function (xhr) {
+                  if (win.top && win.top.console) {
+                    win.top.console.error('XRNote anchor save failed', xhr.status, xhr.responseText);
+                  }
+                  alert('XRNote: anchor save failed (HTTP ' + xhr.status + '). See log/console.');
+                });
 
-              // If your dialog is the old jQuery UI one, close it (harmless if none).
-              if ($page.fn && $page.fn.dialog) {
-                $page('.xrnote-dialog').dialog('close');
+              } catch (err) {
+                if (win.top && win.top.console) win.top.console.error('[xrnote] onInsert error', err);
+                alert('XRNote onInsert error: ' + (err && err.message ? err.message : err));
               }
-
-              // One-shot unbind.
-              $doc.off('xrnote-insert.' + uuid, onInsert);
-            }
-            catch (err) {
-              if (win.top && win.top.console) win.top.console.error('[xrnote] onInsert error', err);
-              alert('XRNote onInsert error: ' + (err && err.message ? err.message : err));
-            }
+            }, 0);
           }
 
           // Bind one-shot handler.
