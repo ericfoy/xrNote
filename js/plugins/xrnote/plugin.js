@@ -64,10 +64,16 @@
 
           openDialog(url, 'Insert XRNote');
 
+          // Use the top window jQuery if available (works even if TinyMCE is in an iframe).
+          var $top = (win.top && win.top.jQuery) ? win.top.jQuery : $;
+          var $root = $top('body');
+
           // Listen for the server-triggered jQuery event.
           function onInsert(e, d) {
             d = d || {};
             if (d.uuid !== uuid || !d.note_nid) return;
+
+            if (win.console) console.log('XRNote insert event received', d);
 
             var marker = '<span class="xrnote-anchor" data-xr-uuid="' + uuid +
                         '" data-note-nid="' + d.note_nid + '">[XR]</span>';
@@ -80,9 +86,16 @@
               selector: JSON.stringify({ pos:{start:start,end:end}, quote:{exact:exact,prefix:prefix,suffix:suffix} })
             });
 
-            $('body').off('xrnote-insert', onInsert);
+            // Close the dialog opened by openDialog().
+            if ($top.fn && $top.fn.dialog) {
+              $top('.xrnote-dialog').dialog('close');
+            }
+
+            // One-shot unbind (namespace by uuid so multiple clicks don’t conflict).
+            $root.off('xrnote-insert.' + uuid);
           }
-          $('body').on('xrnote-insert', onInsert);
+
+          $root.on('xrnote-insert.' + uuid, onInsert);
         }
       });
       return {};

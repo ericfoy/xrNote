@@ -241,7 +241,7 @@ function xrnote_modal_add_form_ajax($form, &$form_state) {
   ));
 
   // Close the jQuery UI dialog.
-  $commands[] = ajax_command_close_dialog('.xrnote-dialog');
+  // No. Don't! $commands[] = ajax_command_close_dialog('.xrnote-dialog');
 
   return array('#type' => 'ajax', '#commands' => $commands);
 }
